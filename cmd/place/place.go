@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"crypto/tls"
 	"encoding/csv"
 	"flag"
@@ -8,6 +9,7 @@ import (
 	"image"
 	"image/draw"
 	"image/png"
+	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -103,6 +105,45 @@ func main() {
 			if enableWL {
 				ioutil.WriteFile(saveRecordPath, placeSv.GetRecordBytes(), 0644)
 			}
+
+			//Upload Image and Record to Supabase
+			supabaseURL := "https://gaenxsgwaaduibsagehb.supabase.co/storage/v1/s3"
+			apiKey := "ef20553ea128384bd31ab8fbb5a665a3504a7ec5696df7391079f8d1ed8618cb"
+			bucket := "place"
+
+			//Image
+			fileBytes, err := ioutil.ReadFile(savePath)
+			if err != nil {
+				return err
+			}
+
+			url := fmt.Sprintf("%s/%s/%s", supabaseURL, bucket, filename)
+			req, err := http.NewRequest("POST", url, bytes.NewBuffer(fileBytes))
+			if err != nil {
+				return err
+			}
+
+			req.Header.Set("Authorization", "Bearer "+apiKey)
+			req.Header.Set("Content-Type", "image/png")
+
+			client := &http.Client{}
+			resp, err := client.Do(req)
+			if err != nil {
+				return err
+			}
+			defer resp.Body.Close()
+
+			if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+				fmt.Println("✅ Image uploaded to Supabase:", filename)
+			} else {
+				body, _ := ioutil.ReadAll(resp.Body)
+				fmt.Printf("❌ Upload failed. Status: %s\nBody: %s\n", resp.Status, string(body))
+			}
+
+			// Do again for Records
+
+			//-----------------
+
 			time.Sleep(time.Second * time.Duration(saveInterval))
 		}
 	}()
@@ -120,6 +161,32 @@ func main() {
 }
 
 func loadImage(loadPath string) draw.Image {
+	//Download file from Supabase
+	url := "https://assets.leetcode.com/static_assets/public/images/LeetCode_logo_rvs.png"
+
+	resp, err := http.Get(url)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("failed to download image, status: %s", resp.Status)
+	}
+
+	file, err := os.Create(loadPath)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	_, err = io.Copy(file, resp.Body)
+	if err != nil {
+		return err
+	}
+
+	// ---------
+
 	f, err := os.Open(loadPath)
 	if err != nil {
 		panic(err)
@@ -133,6 +200,32 @@ func loadImage(loadPath string) draw.Image {
 }
 
 func readWhitelist(whitelistPath string) (map[string]uint16, error) {
+	//Download file from Supabase
+	url := "https://assets.leetcode.com/static_assets/public/images/LeetCode_logo_rvs.png"
+
+	resp, err := http.Get(url)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("failed to download image, status: %s", resp.Status)
+	}
+
+	file, err := os.Create(whitelistPath)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	_, err = io.Copy(file, resp.Body)
+	if err != nil {
+		return err
+	}
+
+	//------------------------
+
 	f, err := os.Open(whitelistPath)
 	if err != nil {
 		log.Fatal(err)

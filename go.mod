@@ -1,4 +1,4 @@
-module github.com/rbxb/place
+module github.com/adrien-sk/place
 
 go 1.16
 
