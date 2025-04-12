@@ -44,18 +44,11 @@ var enableWL bool
 var whitelistPath string
 var loadRecordPath string
 var saveRecordPath string
-var test string
 var bucketUrl string
 var apiUrl string
 var userEmail string
 var userPassword string
 var anonKey string
-
-// bucketUrl := "https://gaenxsgwaaduibsagehb.supabase.co/storage/v1/object/public/place/"
-// apiURL := "https://gaenxsgwaaduibsagehb.supabase.co/auth/v1/token?grant_type=password"
-// userEmail = "goscript@gmail.com"
-// userPassword := "azerty"
-// anonKey := "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdhZW54c2d3YWFkdWlic2FnZWhiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDQyOTEzNDgsImV4cCI6MjA1OTg2NzM0OH0.VeUUnNRc9-hrPPvhzeZXcOm1ROBFnxuGM7-uFi6O1us"
 
 func init() {
 	flag.StringVar(&port, "port", ":8080", "The address and port the fileserver listens at.")
