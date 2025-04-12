@@ -176,7 +176,7 @@ func rateLimiter() func() bool {
 }
 
 func (sv *Server) readLoop(conn *websocket.Conn, i int, allowDraw bool, id uint16) {
-	limiter := rateLimiter()
+	//limiter := rateLimiter()
 	for {
 		_, p, err := conn.ReadMessage()
 		if err != nil {
@@ -186,10 +186,10 @@ func (sv *Server) readLoop(conn *websocket.Conn, i int, allowDraw bool, id uint1
 			log.Println("Client kicked for trying to draw without permission.")
 			break
 		}
-		if !limiter() {
-			log.Println("Client kicked for high rate.")
-			break
-		}
+		// if !limiter() {
+		// 	log.Println("Client kicked for high rate.")
+		// 	break
+		// }
 		if sv.handleMessage(p, id) != nil {
 			log.Println("Client kicked for bad message.")
 			break
