@@ -125,7 +125,7 @@ func main() {
 			os.WriteFile(savePath, placeSv.GetImageBytes(), 0644)
 			if enableWL {
 				os.WriteFile(saveRecordPath, placeSv.GetRecordBytes(), 0644)
-				uploadFileToBucket(saveRecordPath, "text")
+				uploadFileToBucket(saveRecordPath, "image")
 			}
 
 			uploadFileToBucket(savePath, "image")
