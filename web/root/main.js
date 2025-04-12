@@ -69,19 +69,19 @@ const GUI = (cvs, glWindow, place) => {
 	cvs.addEventListener("mousedown", (ev) => {
 		switch (ev.button) {
 			case 0:
-				dragdown = true;
-				lastMovePos = { x: ev.clientX, y: ev.clientY };
-				break;
-			case 1:
-				pickColor({ x: ev.clientX, y: ev.clientY });
-				break;
-			case 2:
 				if (ev.ctrlKey) {
 					pickColor({ x: ev.clientX, y: ev.clientY });
 				} else {
 					drawPixel({ x: ev.clientX, y: ev.clientY }, color);
 					drawing = true;
 				}
+			case 1:
+				pickColor({ x: ev.clientX, y: ev.clientY });
+				break;
+			case 2:
+				dragdown = true;
+				lastMovePos = { x: ev.clientX, y: ev.clientY };
+				break;
 		}
 	});
 
