@@ -151,8 +151,8 @@ func (sv *Server) getConnIndex() int {
 }
 
 func rateLimiter() func() bool {
-	const rate = 8   // per second average
-	const min = 0.01 // kick threshold
+	const rate = 80000 // per second average
+	const min = 0.01   // kick threshold
 
 	// Minimum time difference between messages
 	// Network sometimes delivers two messages in quick succession

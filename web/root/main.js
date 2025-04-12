@@ -13,6 +13,7 @@ function main() {
 const GUI = (cvs, glWindow, place) => {
 	let color = new Uint8Array([0, 0, 0]);
 	let dragdown = false;
+	let drawing = false;
 	let touchID = 0;
 	let touchScaling = false;
 	let lastMovePos = { x: 0, y: 0 };
@@ -79,12 +80,14 @@ const GUI = (cvs, glWindow, place) => {
 					pickColor({ x: ev.clientX, y: ev.clientY });
 				} else {
 					drawPixel({ x: ev.clientX, y: ev.clientY }, color);
+					drawing = true;
 				}
 		}
 	});
 
 	document.addEventListener("mouseup", (ev) => {
 		dragdown = false;
+		drawing = false;
 		document.body.style.cursor = "auto";
 	});
 
@@ -94,6 +97,9 @@ const GUI = (cvs, glWindow, place) => {
 			glWindow.move(movePos.x - lastMovePos.x, movePos.y - lastMovePos.y);
 			glWindow.draw();
 			document.body.style.cursor = "grab";
+		}
+		else if (drawing){
+			drawPixel({ x: movePos.x, y: movePos.y }, color);
 		}
 		lastMovePos = movePos;
 	});

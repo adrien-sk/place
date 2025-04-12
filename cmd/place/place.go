@@ -4,22 +4,32 @@ import (
 	"bytes"
 	"crypto/tls"
 	"encoding/csv"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"image"
 	"image/draw"
 	"image/png"
 	"io"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/rbxb/httpfilter"
 	"github.com/rbxb/place"
 )
+
+// Struct to parse Supabase login response
+type AuthResponse struct {
+	AccessToken string `json:"access_token"`
+	TokenType   string `json:"token_type"`
+	User        struct {
+		ID string `json:"id"`
+	} `json:"user"`
+}
 
 var port string
 var root string
@@ -34,6 +44,18 @@ var enableWL bool
 var whitelistPath string
 var loadRecordPath string
 var saveRecordPath string
+var test string
+var bucketUrl string
+var apiUrl string
+var userEmail string
+var userPassword string
+var anonKey string
+
+// bucketUrl := "https://gaenxsgwaaduibsagehb.supabase.co/storage/v1/object/public/place/"
+// apiURL := "https://gaenxsgwaaduibsagehb.supabase.co/auth/v1/token?grant_type=password"
+// userEmail = "goscript@gmail.com"
+// userPassword := "azerty"
+// anonKey := "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdhZW54c2d3YWFkdWlic2FnZWhiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDQyOTEzNDgsImV4cCI6MjA1OTg2NzM0OH0.VeUUnNRc9-hrPPvhzeZXcOm1ROBFnxuGM7-uFi6O1us"
 
 func init() {
 	flag.StringVar(&port, "port", ":8080", "The address and port the fileserver listens at.")
@@ -49,10 +71,16 @@ func init() {
 	flag.StringVar(&loadRecordPath, "loadRecord", "", "The png to load as the record.")
 	flag.StringVar(&saveRecordPath, "saveRecord", "./record.png", "The path to save the record.")
 	flag.BoolVar(&enableWL, "wl", false, "Enable whitelist.")
+	flag.StringVar(&bucketUrl, "bucketUrl", "", "Supabase Bucket url")
+	flag.StringVar(&apiUrl, "apiUrl", "", "Supabase API Url")
+	flag.StringVar(&userEmail, "userEmail", "", "Authenticated user email")
+	flag.StringVar(&userPassword, "userPassword", "", "Authenticated user password")
+	flag.StringVar(&anonKey, "anonKey", "", "Supabase API ANON Key")
 }
 
 func main() {
 	flag.Parse()
+
 	if logPath != "" {
 		f, err := os.OpenFile("place.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 		if err != nil {
@@ -93,56 +121,21 @@ func main() {
 	}
 
 	placeSv := place.NewServer(img, count, enableWL, whitelist, record)
-	defer ioutil.WriteFile(savePath, placeSv.GetImageBytes(), 0644)
+	defer os.WriteFile(savePath, placeSv.GetImageBytes(), 0644)
 	defer func() {
 		if enableWL {
-			ioutil.WriteFile(savePath, placeSv.GetRecordBytes(), 0644)
+			os.WriteFile(savePath, placeSv.GetRecordBytes(), 0644)
 		}
 	}()
 	go func() {
 		for {
-			ioutil.WriteFile(savePath, placeSv.GetImageBytes(), 0644)
+			os.WriteFile(savePath, placeSv.GetImageBytes(), 0644)
 			if enableWL {
-				ioutil.WriteFile(saveRecordPath, placeSv.GetRecordBytes(), 0644)
+				os.WriteFile(saveRecordPath, placeSv.GetRecordBytes(), 0644)
+				uploadFileToBucket(saveRecordPath, "text")
 			}
 
-			//Upload Image and Record to Supabase
-			supabaseURL := "https://gaenxsgwaaduibsagehb.supabase.co/storage/v1/s3"
-			apiKey := "ef20553ea128384bd31ab8fbb5a665a3504a7ec5696df7391079f8d1ed8618cb"
-			bucket := "place"
-
-			//Image
-			fileBytes, err := ioutil.ReadFile(savePath)
-			if err != nil {
-				return err
-			}
-
-			url := fmt.Sprintf("%s/%s/%s", supabaseURL, bucket, filename)
-			req, err := http.NewRequest("POST", url, bytes.NewBuffer(fileBytes))
-			if err != nil {
-				return err
-			}
-
-			req.Header.Set("Authorization", "Bearer "+apiKey)
-			req.Header.Set("Content-Type", "image/png")
-
-			client := &http.Client{}
-			resp, err := client.Do(req)
-			if err != nil {
-				return err
-			}
-			defer resp.Body.Close()
-
-			if resp.StatusCode >= 200 && resp.StatusCode < 300 {
-				fmt.Println("✅ Image uploaded to Supabase:", filename)
-			} else {
-				body, _ := ioutil.ReadAll(resp.Body)
-				fmt.Printf("❌ Upload failed. Status: %s\nBody: %s\n", resp.Status, string(body))
-			}
-
-			// Do again for Records
-
-			//-----------------
+			uploadFileToBucket(savePath, "image")
 
 			time.Sleep(time.Second * time.Duration(saveInterval))
 		}
@@ -162,27 +155,33 @@ func main() {
 
 func loadImage(loadPath string) draw.Image {
 	//Download file from Supabase
-	url := "https://assets.leetcode.com/static_assets/public/images/LeetCode_logo_rvs.png"
+	url := bucketUrl + loadPath
 
 	resp, err := http.Get(url)
 	if err != nil {
-		return err
+		panic(err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("failed to download image, status: %s", resp.Status)
+		fmt.Println("failed to download file, status: %s", resp.Status)
+		fmt.Println("Creating new canvas with dimensions %d x %d\n", width, height)
+		nrgba := image.NewNRGBA(image.Rect(0, 0, width, height))
+		for i := range nrgba.Pix {
+			nrgba.Pix[i] = 255
+		}
+		return (nrgba)
 	}
 
 	file, err := os.Create(loadPath)
 	if err != nil {
-		return err
+		panic(err)
 	}
 	defer file.Close()
 
 	_, err = io.Copy(file, resp.Body)
 	if err != nil {
-		return err
+		panic(err)
 	}
 
 	// ---------
@@ -201,27 +200,27 @@ func loadImage(loadPath string) draw.Image {
 
 func readWhitelist(whitelistPath string) (map[string]uint16, error) {
 	//Download file from Supabase
-	url := "https://assets.leetcode.com/static_assets/public/images/LeetCode_logo_rvs.png"
+	url := bucketUrl + whitelistPath
 
 	resp, err := http.Get(url)
 	if err != nil {
-		return err
+		panic(err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("failed to download image, status: %s", resp.Status)
+		panic(fmt.Errorf("failed to download file, status: %s", resp.Status))
 	}
 
 	file, err := os.Create(whitelistPath)
 	if err != nil {
-		return err
+		panic(err)
 	}
 	defer file.Close()
 
 	_, err = io.Copy(file, resp.Body)
 	if err != nil {
-		return err
+		panic(err)
 	}
 
 	//------------------------
@@ -245,4 +244,95 @@ func readWhitelist(whitelistPath string) (map[string]uint16, error) {
 		whitelist[v[0]] = uint16(x)
 	}
 	return whitelist, nil
+}
+
+func getJWTToken() string {
+
+	// Prepare request body
+	bodyData := map[string]string{
+		"email":    userEmail,
+		"password": userPassword,
+	}
+	bodyJSON, _ := json.Marshal(bodyData)
+
+	// Create HTTP request
+	req, err := http.NewRequest("POST", apiUrl, bytes.NewBuffer(bodyJSON))
+	if err != nil {
+		fmt.Println("❌ Failed to create request:", err)
+		os.Exit(1)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("apikey", anonKey)
+
+	// Send request
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		fmt.Println("❌ Request error:", err)
+		os.Exit(1)
+	}
+	defer resp.Body.Close()
+
+	// Read and parse response
+	body, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusOK {
+		fmt.Println("❌ Login failed:", string(body))
+		os.Exit(1)
+	}
+
+	var authResp AuthResponse
+	err = json.Unmarshal(body, &authResp)
+	if err != nil {
+		fmt.Println("❌ Failed to parse response:", err)
+		os.Exit(1)
+	}
+	return (authResp.AccessToken)
+}
+
+func uploadFileToBucket(filename string, format string) {
+	url := fmt.Sprintf("%s%s", bucketUrl, strings.TrimPrefix(filename, `./`))
+
+	// Open the file to upload
+	file, err := os.Open(savePath)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer file.Close()
+
+	// Read the file's content into memory
+	fileBytes, err := io.ReadAll(file)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// Create a new HTTP POST request
+	req, err := http.NewRequest("POST", url, bytes.NewReader(fileBytes))
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// Add the required headers
+	req.Header.Add("Authorization", getJWTToken())
+	if format == "image" {
+		req.Header.Add("Content-Type", "image/png")
+	}
+	if format == "text" {
+		req.Header.Add("Content-Type", "text/plain")
+	}
+	req.Header.Add("x-upsert", "true")
+
+	// Send the request
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+		fmt.Println("✅ File uploaded to Supabase : " + filename)
+	} else {
+		body, _ := io.ReadAll(resp.Body)
+		fmt.Printf("❌ Upload failed. Status: %s\nBody: %s\n", resp.Status, string(body))
+	}
 }
