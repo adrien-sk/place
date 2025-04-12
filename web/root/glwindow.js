@@ -52,7 +52,7 @@ class GLWindow {
 
 	constructor(cvs) {
 		this.#cvs = cvs;
-		this.#gl = cvs.getContext("webgl");
+		this.#gl = cvs.getContext("webgl", {preserveDrawingBuffer: true});
 		if (this.#gl == null) {
 			alert("Couldn't get WebGL context.");
 			return;
@@ -228,5 +228,46 @@ class GLWindow {
 		this.#u_tex = this.#gl.getUniformLocation(this.#program, 'tex_scale');
 		this.#u_view = this.#gl.getUniformLocation(this.#program, 'view_scale');
 		this.#u_zoom = this.#gl.getUniformLocation(this.#program, 'zoom');
+	}
+
+	exportImage(scale = 4) {
+		const gl = this.#gl;
+		const width = this.#texScale.x;
+		const height = this.#texScale.y;
+	
+		// Read pixels from the texture
+		gl.bindFramebuffer(gl.FRAMEBUFFER, this.#texFramebuffer);
+		const pixels = new Uint8Array(width * height * 4);
+		gl.readPixels(0, 0, width, height, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
+	
+		// Create a source canvas (1x scale) to hold the raw texture
+		const srcCanvas = document.createElement('canvas');
+		srcCanvas.width = width;
+		srcCanvas.height = height;
+		const srcCtx = srcCanvas.getContext('2d');
+		const imageData = srcCtx.createImageData(width, height);
+	
+		// Copy pixel data
+		for (let y = 0; y < height; y++) {
+			for (let x = 0; x < width; x++) {
+				const index = (y * width + x) * 4;
+				for (let i = 0; i < 4; i++) {
+					imageData.data[index + i] = pixels[index + i];
+				}
+			}
+		}
+		srcCtx.putImageData(imageData, 0, 0);
+	
+		// Create a scaled export canvas
+		const exportCanvas = document.createElement('canvas');
+		exportCanvas.width = width * scale;
+		exportCanvas.height = height * scale;
+		const exportCtx = exportCanvas.getContext('2d');
+	
+		// Scale drawing
+		exportCtx.imageSmoothingEnabled = false; // Preserve pixel sharpness
+		exportCtx.drawImage(srcCanvas, 0, 0, exportCanvas.width, exportCanvas.height);
+	
+		return exportCanvas.toDataURL('image/png');
 	}
 }

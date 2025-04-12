@@ -61,6 +61,11 @@ const GUI = (cvs, glWindow, place) => {
 		zoomOut(1.2);
 	});
 
+	document.querySelector(".save").addEventListener("click", () => {
+		let dataURL = glWindow.exportImage();
+		dataURItoBlob(getBase64StringFromDataURL(dataURL));
+	});
+
 	window.addEventListener("resize", ev => {
 		glWindow.updateViewScale();
 		glWindow.draw();
@@ -215,3 +220,26 @@ const GUI = (cvs, glWindow, place) => {
 		glWindow.draw();
 	}
 }
+
+function dataURItoBlob(data) {
+	var byteCharacters = window.atob(data);
+	var byteNumbers = new Array(byteCharacters.length);
+  
+	for (var i = 0; i < byteCharacters.length; i++) {
+	  byteNumbers[i] = byteCharacters.charCodeAt(i);
+	}
+  
+	var byteArray = new Uint8Array(byteNumbers);
+  
+	var file = new Blob([byteArray], {
+	  type: "image/jpeg;base64",
+	});
+  
+	var fileURL = URL.createObjectURL(file);
+  
+	window.open(fileURL, "_blank");
+}
+
+const getBase64StringFromDataURL = (dataURL) =>
+    dataURL.replace('data:', '').replace(/^.+,/, '');
+
